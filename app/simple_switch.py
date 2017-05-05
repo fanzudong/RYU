@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """
-An OpenFlow 1.0 L2 learning switch implementation.
+OpenFlow 1.0 L2学习型交换机的实现。
 """
 
 
@@ -28,14 +28,14 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 
-
+#简单交换机类
 class SimpleSwitch(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
-
+#初始化
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-
+#增加流
     def add_flow(self, datapath, in_port, dst, actions):
         ofproto = datapath.ofproto
 
@@ -48,7 +48,7 @@ class SimpleSwitch(app_manager.RyuApp):
             priority=ofproto.OFP_DEFAULT_PRIORITY,
             flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
         datapath.send_msg(mod)
-
+#装饰数据包正在处理
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         msg = ev.msg
@@ -59,7 +59,7 @@ class SimpleSwitch(app_manager.RyuApp):
         eth = pkt.get_protocol(ethernet.ethernet)
 
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
-            # ignore lldp packet
+            # 忽略lldp数据包
             return
         dst = eth.dst
         src = eth.src
@@ -69,7 +69,7 @@ class SimpleSwitch(app_manager.RyuApp):
 
         self.logger.info("packet in %s %s %s %s", dpid, src, dst, msg.in_port)
 
-        # learn a mac address to avoid FLOOD next time.
+        # 学习一个mac地址，以避免下次洪泛.
         self.mac_to_port[dpid][src] = msg.in_port
 
         if dst in self.mac_to_port[dpid]:
@@ -79,7 +79,7 @@ class SimpleSwitch(app_manager.RyuApp):
 
         actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
-        # install a flow to avoid packet_in next time
+        # 安装一个流表避免下次packet_in
         if out_port != ofproto.OFPP_FLOOD:
             self.add_flow(datapath, msg.in_port, dst, actions)
 
@@ -91,7 +91,7 @@ class SimpleSwitch(app_manager.RyuApp):
             datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
             actions=actions, data=data)
         datapath.send_msg(out)
-
+#装饰端口状态处理
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def _port_status_handler(self, ev):
         msg = ev.msg
