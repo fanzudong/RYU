@@ -16,30 +16,30 @@
 from ryu.base import app_manager
 from ryu.topology import event
 
-
+#获取交换机
 def get_switch(app, dpid=None):
     rep = app.send_request(event.EventSwitchRequest(dpid))
     return rep.switches
 
-
+#获取所有交换机
 def get_all_switch(app):
     return get_switch(app)
 
-
+#获取链路
 def get_link(app, dpid=None):
     rep = app.send_request(event.EventLinkRequest(dpid))
     return rep.links
 
-
+#获取所有链路
 def get_all_link(app):
     return get_link(app)
 
-
+#获取主机
 def get_host(app, dpid=None):
     rep = app.send_request(event.EventHostRequest(dpid))
     return rep.hosts
 
-
+#获取所有主机
 def get_all_host(app):
     return get_host(app)
 
