@@ -19,21 +19,21 @@ from ryu.lib.mac import haddr_to_str
 
 LOG = logging.getLogger('ryu.controller.mac_to_port')
 
-
+#Mac到端口列表
 class MacToPortTable(object):
     """MAC addr <-> (dpid, port name)"""
-
+#初始化
     def __init__(self):
         super(MacToPortTable, self).__init__()
         self.mac_to_port = {}
-
+#添加dpid
     def dpid_add(self, dpid):
         LOG.debug('dpid_add: 0x%016x', dpid)
         self.mac_to_port.setdefault(dpid, {})
-
+#添加端口
     def port_add(self, dpid, port, mac):
         """
-        :returns: old port if learned. (this may be = port)
+        :返回: 旧端口如果学习过. (this may be = port)
                   None otherwise
         """
         old_port = self.mac_to_port[dpid].get(mac, None)
@@ -44,14 +44,14 @@ class MacToPortTable(object):
                       dpid, port, haddr_to_str(mac))
 
         return old_port
-
+#端口获取
     def port_get(self, dpid, mac):
         # LOG.debug('dpid 0x%016x mac %s', dpid, haddr_to_str(mac))
         return self.mac_to_port[dpid].get(mac)
-
+#Mac列表
     def mac_list(self, dpid, port):
         return [mac for (mac, port_) in self.mac_to_port.get(dpid).items()
                 if port_ == port]
-
+#Mac删除
     def mac_del(self, dpid, mac):
         del self.mac_to_port[dpid][mac]
