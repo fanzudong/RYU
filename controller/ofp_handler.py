@@ -15,7 +15,7 @@
 # limitations under the License.
 
 """
-Basic OpenFlow handling including negotiation.
+基本的OpenFlow处理包括协商
 """
 
 import itertools
@@ -34,29 +34,28 @@ from ryu.controller.handler import HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER,\
 from ryu.ofproto import ofproto_parser
 
 
-# The state transition: HANDSHAKE -> CONFIG -> MAIN
+# 状态过渡: HANDSHAKE -> CONFIG -> MAIN
 #
-# HANDSHAKE: if it receives HELLO message with the valid OFP version,
-# sends Features Request message, and moves to CONFIG.
+# HANDSHAKE: 如果它收到可用的OFP版本的HELLO消息,
+#发送特征请求消息, 然后去CONFIG.
 #
-# CONFIG: it receives Features Reply message and moves to MAIN
+# CONFIG: 收到Feature Reply消息并切换到MAIN
 #
-# MAIN: it does nothing. Applications are expected to register their
-# own handlers.
+# MAIN: 什么也不做. 应用要注册它们自己的处理者
+# 
 #
-# Note that at any state, when we receive Echo Request message, send
-# back Echo Reply message.
+# 请注意，在任何状态下，当我们收到回应请求消息时，返回回复消息。
 
-
+#ofp处理者类
 class OFPHandler(ryu.base.app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(OFPHandler, self).__init__(*args, **kwargs)
         self.name = 'ofp_event'
-
+#开始
     def start(self):
         super(OFPHandler, self).start()
         return hub.spawn(OpenFlowController())
-
+#hello失败
     def _hello_failed(self, datapath, error_desc):
         self.logger.error(error_desc)
         error_msg = datapath.ofproto_parser.OFPErrorMsg(datapath)
@@ -64,15 +63,15 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
         error_msg.code = datapath.ofproto.OFPHFC_INCOMPATIBLE
         error_msg.data = error_desc
         datapath.send_msg(error_msg)
-
+#设置事件处理者
     @set_ev_handler(ofp_event.EventOFPHello, HANDSHAKE_DISPATCHER)
     def hello_handler(self, ev):
         self.logger.debug('hello ev %s', ev)
         msg = ev.msg
         datapath = msg.datapath
 
-        # check if received version is supported.
-        # pre 1.0 is not supported
+        # 检测收到的版本是否支持.
+        # 1.0之前的版本不支持
         elements = getattr(msg, 'elements', None)
         if elements:
             switch_versions = set()
@@ -82,20 +81,20 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             usable_versions = switch_versions & set(
                 datapath.supported_ofp_version)
 
-            # We didn't send our supported versions for interoperability as
-            # most switches would not understand elements at the moment.
-            # So the switch would think that the negotiated version would
-            # be max(negotiated_versions), but actual usable version is
-            # max(usable_versions).
+            # 我们没有发送我们支持的版本的互操作性，
+            #因为大多数交换机目前不了解组成。
+            #所以交换机会认为协商的版本是
+            #max（negotiiated_versions），但实际的
+            #可用版本是max（available_versions）。
             negotiated_versions = set(
                 version for version in switch_versions
                 if version <= max(datapath.supported_ofp_version))
             if negotiated_versions and not usable_versions:
                 # e.g.
-                # versions of OF 1.0 and 1.1 from switch
-                # max of OF 1.2 from Ryu and supported_ofp_version = (1.2, )
-                # negotiated version = 1.1
-                # usable version = None
+                # 交换机的版本是1.0和1.1
+                # ryu支持1.2，1.1, 1.0
+                # 协商版本 = 1.1
+                # 可用版本 = None
                 error_desc = (
                     'no compatible version found: '
                     'switch versions %s controller version 0x%x, '
@@ -110,13 +109,13 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             if (negotiated_versions and usable_versions and
                     max(negotiated_versions) != max(usable_versions)):
                 # e.g.
-                # versions of OF 1.0 and 1.1 from switch
-                # max of OF 1.2 from Ryu and supported_ofp_version = (1.0, 1.2)
-                # negotiated version = 1.1
+                # 交换机的版本是1.0和1.1
+                # ryu支持1.2， 1.0
+                # negotiated version = 1.0
                 # usable version = 1.0
                 #
-                # TODO: In order to get the version 1.0, Ryu need to send
-                # supported verions.
+                # TODO: 为了获得版本1.0, Ryu需要发送
+                # 支持版本
                 error_desc = (
                     'no compatible version found: '
                     'switch versions 0x%x controller version 0x%x, '
@@ -136,32 +135,32 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             if (usable_versions and
                 max(usable_versions) != min(msg.version,
                                             datapath.ofproto.OFP_VERSION)):
-                # The version of min(msg.version, datapath.ofproto.OFP_VERSION)
-                # should be used according to the spec. But we can't.
-                # So log it and use max(usable_versions) with the hope that
-                # the switch is able to understand lower version.
+                # 版本min(msg.version, datapath.ofproto.OFP_VERSION)
+                # 根据规范应该被用. 但我们不能.
+                # So log it and 用max(usable_versions) 希望
+                # 交换机可以解析低版本.
                 # e.g.
                 # OF 1.1 from switch
                 # OF 1.2 from Ryu and supported_ofp_version = (1.0, 1.2)
-                # In this case, 1.1 should be used according to the spec,
-                # but 1.1 can't be used.
+                # 这种情况下, 根据规范1.1应该可以用,
+                # 但1.1 不能用
                 #
                 # OF1.3.1 6.3.1
-                # Upon receipt of this message, the recipient must
-                # calculate the OpenFlow protocol version to be used. If
-                # both the Hello message sent and the Hello message
-                # received contained a OFPHET_VERSIONBITMAP hello element,
-                # and if those bitmaps have some common bits set, the
-                # negotiated version must be the highest version set in
-                # both bitmaps. Otherwise, the negotiated version must be
-                # the smaller of the version number that was sent and the
-                # one that was received in the version fields.  If the
-                # negotiated version is supported by the recipient, then
-                # the connection proceeds. Otherwise, the recipient must
-                # reply with an OFPT_ERROR message with a type field of
-                # OFPET_HELLO_FAILED, a code field of OFPHFC_INCOMPATIBLE,
-                # and optionally an ASCII string explaining the situation
-                # in data, and then terminate the connection.
+                # 收到此消息后，收件人必须
+                #计算要使用的OpenFlow协议版本。如果
+                #发送Hello消息和Hello消息
+                #收到包含一个OFPHET_VERSIONBITMAP hello元素，
+                #，如果这些位图设置了一些常用位，那么
+                #negotiationiated必须是最高版本
+                #两个位图。否则，协商版本必须是
+                #发送的版本号越小越好
+                #在版本字段中收到的。如果
+                #negotiated版本由收件人支持
+                #连接进行。否则，收件人必须
+                #回复一个OFPT_ERROR消息，其类型为
+                #OFPET_HELLO_FAILED，一个OFPHFC_INCOMPATIBLE的代码字段，
+                #和可选的ASCII字符串解释情况
+                #在数据中，然后终止连接。
                 version = max(usable_versions)
                 error_desc = (
                     'no compatible version found: '
@@ -171,7 +170,7 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
                         version, version))
                 self._hello_failed(datapath, error_desc)
                 return
-
+#如果没有可用版本
         if not usable_versions:
             error_desc = (
                 'unsupported version 0x%x. '
@@ -181,14 +180,14 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             return
         datapath.set_version(max(usable_versions))
 
-        # Move on to config state
+#切换到配置状态
         self.logger.debug('move onto config mode')
         datapath.set_state(CONFIG_DISPATCHER)
 
-        # Finally, send feature request
+#最终，发送特征请求
         features_request = datapath.ofproto_parser.OFPFeaturesRequest(datapath)
         datapath.send_msg(features_request)
-
+#设置事件处理者
     @set_ev_handler(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         msg = ev.msg
@@ -197,10 +196,10 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
 
         datapath.id = msg.datapath_id
 
-        # hacky workaround, will be removed. OF1.3 doesn't have
-        # ports. An application should not depend on them. But there
-        # might be such bad applications so keep this workaround for
-        # while.
+        # 恶意的解决方法，将被删除。 OF1.3 doesn't have ports.
+        # 应用程序不应该依赖它们.
+        # 但是可能会有这样糟糕的应用程序，
+        # 所以保持这个解决方法。
         if datapath.ofproto.OFP_VERSION < 0x04:
             datapath.ports = msg.ports
         else:
@@ -213,7 +212,7 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             port_desc = datapath.ofproto_parser.OFPPortDescStatsRequest(
                 datapath, 0)
             datapath.send_msg(port_desc)
-
+#多回复处理者
     @set_ev_handler(ofp_event.EventOFPPortDescStatsReply, CONFIG_DISPATCHER)
     def multipart_reply_handler(self, ev):
         msg = ev.msg
@@ -227,7 +226,7 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             return
         self.logger.debug('move onto main mode')
         ev.msg.datapath.set_state(MAIN_DISPATCHER)
-
+#echo请求处理者
     @set_ev_handler(ofp_event.EventOFPEchoRequest,
                     [HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER, MAIN_DISPATCHER])
     def echo_request_handler(self, ev):
@@ -237,20 +236,20 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
         echo_reply.xid = msg.xid
         echo_reply.data = msg.data
         datapath.send_msg(echo_reply)
-
+#echo回复处理者
     @set_ev_handler(ofp_event.EventOFPEchoReply,
                     [HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER, MAIN_DISPATCHER])
     def echo_reply_handler(self, ev):
         msg = ev.msg
         datapath = msg.datapath
         datapath.acknowledge_echo_reply(msg.xid)
-
+#端口状态处理者
     @set_ev_handler(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def port_status_handler(self, ev):
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
-
+#
         if msg.reason in [ofproto.OFPPR_ADD, ofproto.OFPPR_MODIFY]:
             datapath.ports[msg.desc.port_no] = msg.desc
         elif msg.reason == ofproto.OFPPR_DELETE:
@@ -262,7 +261,7 @@ class OFPHandler(ryu.base.app_manager.RyuApp):
             ofp_event.EventOFPPortStateChange(
                 datapath, msg.reason, msg.desc.port_no),
             datapath.state)
-
+#错误消息处理者
     @set_ev_handler(ofp_event.EventOFPErrorMsg,
                     [HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER, MAIN_DISPATCHER])
     def error_msg_handler(self, ev):
