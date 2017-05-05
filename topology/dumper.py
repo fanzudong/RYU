@@ -25,9 +25,9 @@ from ryu.topology import switches
 
 LOG = logging.getLogger(__name__)
 
-
+#事件转储发现类
 class DiscoveryEventDumper(app_manager.RyuApp):
-    ''' This app dumps discovery events
+    ''' 此应用程序会转储发现事件
     '''
     _CONTEXTS = {
         'switches': switches.Switches,
@@ -36,7 +36,7 @@ class DiscoveryEventDumper(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(DiscoveryEventDumper, self).__init__(*args, **kwargs)
 
-        # For testing when sync and async request.
+        # 用于在同步和异步请求时进行测试。
 #        self.threads.append(
 #            hub.spawn(self._switch_request_sync, 5))
 #        self.threads.append(
@@ -48,35 +48,35 @@ class DiscoveryEventDumper(app_manager.RyuApp):
 #            hub.spawn(self._link_request_async, 10))
 
         self.is_active = True
-
+#装饰交换机进入处理
     @handler.set_ev_cls(event.EventSwitchEnter)
     def switch_enter_handler(self, ev):
         LOG.debug(ev)
-
+#装饰交换机离开处理
     @handler.set_ev_cls(event.EventSwitchLeave)
     def switch_leave_handler(self, ev):
         LOG.debug(ev)
-
+#装饰端口增加处理
     @handler.set_ev_cls(event.EventPortAdd)
     def port_add_handler(self, ev):
         LOG.debug(ev)
-
+#装饰端口删除处理
     @handler.set_ev_cls(event.EventPortDelete)
     def port_delete_handler(self, ev):
         LOG.debug(ev)
-
+#装饰端口修改处理
     @handler.set_ev_cls(event.EventPortModify)
     def port_modify_handler(self, ev):
         LOG.debug(ev)
-
+#装饰链路增加处理
     @handler.set_ev_cls(event.EventLinkAdd)
     def link_add_handler(self, ev):
         LOG.debug(ev)
-
+#装饰链路删除处理
     @handler.set_ev_cls(event.EventLinkDelete)
     def link_del_handler(self, ev):
         LOG.debug(ev)
-
+#交换机同步请求
     def _switch_request_sync(self, interval):
         while self.is_active:
             request = event.EventSwitchRequest()
@@ -88,7 +88,7 @@ class DiscoveryEventDumper(app_manager.RyuApp):
                 for sw in reply.switches:
                     LOG.debug('  %s', sw)
             hub.sleep(interval)
-
+#交换机异步请求
     def _switch_request_async(self, interval):
         while self.is_active:
             request = event.EventSwitchRequest()
@@ -113,14 +113,14 @@ class DiscoveryEventDumper(app_manager.RyuApp):
             LOG.debug('  thread get back. thread(%s)',
                       id(hub.getcurrent()))
             hub.sleep(interval - busy)
-
+#装饰交换机回复处理
     @handler.set_ev_cls(event.EventSwitchReply)
     def switch_reply_handler(self, reply):
         LOG.debug('switch_reply async %s', reply)
         if len(reply.switches) > 0:
             for sw in reply.switches:
                 LOG.debug('  %s', sw)
-
+#链路同步请求
     def _link_request_sync(self, interval):
         while self.is_active:
             request = event.EventLinkRequest()
@@ -132,7 +132,7 @@ class DiscoveryEventDumper(app_manager.RyuApp):
                 for link in reply.links:
                     LOG.debug('  %s', link)
             hub.sleep(interval)
-
+#链路异步请求
     def _link_request_async(self, interval):
         while self.is_active:
             request = event.EventLinkRequest()
@@ -157,7 +157,7 @@ class DiscoveryEventDumper(app_manager.RyuApp):
             LOG.debug('  thread get back. thread(%s)',
                       id(hub.getcurrent()))
             hub.sleep(interval - busy)
-
+#装饰链路回复处理
     @handler.set_ev_cls(event.EventLinkReply)
     def link_reply_handler(self, reply):
         LOG.debug('link_reply async %s', reply)
