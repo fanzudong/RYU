@@ -45,7 +45,7 @@ class MacToNetwork(object):
             return
 
         if nw_id == nw_id_external:
-            # this can happens when the packet traverses
+            # 当数据包遍历时，可能会发生这种情况
             # VM-> tap-> ovs-> ext-port-> wire-> ext-port-> ovs-> tap-> VM
             return
 
