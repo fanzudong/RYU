@@ -14,33 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+#事件基类
 class EventBase(object):
     """
-    The base of all event classes.
+    所有事件类的基础。
 
-    A Ryu application can define its own event type by creating a subclass.
+    Ryu应用程序可以通过创建一个子类来定义自己的事件类型。
     """
-
+#初始化函数
     def __init__(self):
         super(EventBase, self).__init__()
 
-
+#事件请求基类
 class EventRequestBase(EventBase):
     """
-    The base class for synchronous request for RyuApp.send_request.
+    RyuApp.send_request同步请求的基类。
     """
     def __init__(self):
         super(EventRequestBase, self).__init__()
-        self.dst = None  # app.name of provide the event.
+        self.dst = None  # 提供事件的应用名.
         self.src = None
         self.sync = False
         self.reply_q = None
 
-
+#事件回复基类
 class EventReplyBase(EventBase):
     """
-    The base class for synchronous request reply for RyuApp.send_reply.
+    RyuApp.send_reply的同步请求回复的基类。
     """
     def __init__(self, dst):
         super(EventReplyBase, self).__init__()
