@@ -24,18 +24,18 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.app import simple_switch_13
 
-
+#简单交换机（OF1.3版）类
 class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
     _CONTEXTS = {'stplib': stplib.Stp}
-
+#初始化
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
         self.stp = kwargs['stplib']
 
-        # Sample of stplib config.
-        #  please refer to stplib.Stp.set_config() for details.
+        # 生成树协议库配置样例.
+        # 有关详细信息，请参阅stplib.Stp.set_config（）
         config = {dpid_lib.str_to_dpid('0000000000000001'):
                   {'bridge': {'priority': 0x8000}},
                   dpid_lib.str_to_dpid('0000000000000002'):
@@ -43,7 +43,7 @@ class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
                   dpid_lib.str_to_dpid('0000000000000003'):
                   {'bridge': {'priority': 0xa000}}}
         self.stp.set_config(config)
-
+#流删除
     def delete_flow(self, datapath):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -55,7 +55,7 @@ class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
                 out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPG_ANY,
                 priority=1, match=match)
             datapath.send_msg(mod)
-
+#装饰数据包正在处理
     @set_ev_cls(stplib.EventPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         msg = ev.msg
@@ -75,7 +75,7 @@ class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
 
         self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
-        # learn a mac address to avoid FLOOD next time.
+        # 学习一个mac地址，以避免下次洪泛。
         self.mac_to_port[dpid][src] = in_port
 
         if dst in self.mac_to_port[dpid]:
@@ -85,7 +85,7 @@ class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
 
         actions = [parser.OFPActionOutput(out_port)]
 
-        # install a flow to avoid packet_in next time
+        # 安装一个流表避免下次packet_in
         if out_port != ofproto.OFPP_FLOOD:
             match = parser.OFPMatch(in_port=in_port, eth_dst=dst)
             self.add_flow(datapath, 1, match, actions)
@@ -97,7 +97,7 @@ class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
-
+#装饰拓扑改变处理
     @set_ev_cls(stplib.EventTopologyChange, MAIN_DISPATCHER)
     def _topology_change_handler(self, ev):
         dp = ev.dp
@@ -108,7 +108,7 @@ class SimpleSwitch13(simple_switch_13.SimpleSwitch13):
         if dp.id in self.mac_to_port:
             self.delete_flow(dp)
             del self.mac_to_port[dp.id]
-
+#装饰端口改变处理
     @set_ev_cls(stplib.EventPortStateChange, MAIN_DISPATCHER)
     def _port_state_change_handler(self, ev):
         dpid_str = dpid_lib.dpid_to_str(ev.dp.id)
