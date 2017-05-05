@@ -21,23 +21,23 @@ from ryu.lib.mac import haddr_to_str
 
 LOG = logging.getLogger('ryu.controller.mac_to_network')
 
-
+#Mac到网络基类
 class MacToNetwork(object):
     def __init__(self, nw):
         super(MacToNetwork, self).__init__()
         self.mac_to_net = {}
         self.dpid = {}
         self.nw = nw
-
+#获取网络
     def get_network(self, mac, default=None):
         return self.mac_to_net.get(mac, default)
-
+#添加Mac
     def add_mac(self, mac, nw_id, nw_id_external=None):
         _nw_id = self.mac_to_net.get(mac)
         if _nw_id == nw_id:
             return
 
-        # allow changing from nw_id_external to known nw id
+# 允许从nw_id_external更改为已知的nw id
         if _nw_id is None or _nw_id == nw_id_external:
             self.mac_to_net[mac] = nw_id
             LOG.debug('overwrite nw_id: mac %s nw old %s new %s',
@@ -53,6 +53,6 @@ class MacToNetwork(object):
                     haddr_to_str(mac), _nw_id, nw_id)
 
         raise MacAddressDuplicated(mac=mac)
-
+#删除Mac
     def del_mac(self, mac):
         del self.mac_to_net[mac]
