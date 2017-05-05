@@ -50,7 +50,7 @@ class NetworkAwareness(app_manager.RyuApp):
 
     """
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-
+#初始化
     def __init__(self, *args, **kwargs):
         super(NetworkAwareness, self).__init__(*args, **kwargs)
         self.topology_api_app = self
@@ -67,7 +67,7 @@ class NetworkAwareness(app_manager.RyuApp):
         self.pre_link_to_port = {}
         self.shortest_paths = None
 
-        # Start a green thread to discover network resource.
+        # 启动一个绿色线程来发现网络资源。
         self.discover_thread = hub.spawn(self._discover)
 
     def _discover(self):
@@ -79,11 +79,11 @@ class NetworkAwareness(app_manager.RyuApp):
                 i = 0
             hub.sleep(setting.DISCOVERY_PERIOD)
             i = i + 1
-
+#装饰交换机特征处理
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         """
-            Initial operation, send miss-table flow entry to datapaths.
+            初始化操作，将table-miss流条目发送到数据路径。
         """
         datapath = ev.msg.datapath
         ofproto = datapath.ofproto
@@ -91,12 +91,12 @@ class NetworkAwareness(app_manager.RyuApp):
         msg = ev.msg
         self.logger.info("switch:%s connected", datapath.id)
 
-        # install table-miss flow entry
+        # 安装 table-miss flow entry
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
-
+#增加流
     def add_flow(self, dp, p, match, actions, idle_timeout=0, hard_timeout=0):
         ofproto = dp.ofproto
         parser = dp.ofproto_parser
@@ -109,27 +109,27 @@ class NetworkAwareness(app_manager.RyuApp):
                                 hard_timeout=hard_timeout,
                                 match=match, instructions=inst)
         dp.send_msg(mod)
-
+#获取主机位置
     def get_host_location(self, host_ip):
         """
-            Get host location info:(datapath, port) according to host ip.
+            获取主机位置信息：（datapath，port）根据主机ip
         """
         for key in self.access_table.keys():
             if self.access_table[key][0] == host_ip:
                 return key
         self.logger.info("%s location is not found." % host_ip)
         return None
-
+#获取交换机
     def get_switches(self):
         return self.switches
-
+#获取链路
     def get_links(self):
         return self.link_to_port
 
-
+#获取图
     def get_graph(self, link_list):
         """
-            Get Adjacency matrix from link_to_port
+           从link_to_port获取邻接矩阵
         """
         for src in self.switches:
             for dst in self.switches:
@@ -138,10 +138,10 @@ class NetworkAwareness(app_manager.RyuApp):
                 elif (src, dst) in link_list:
                     self.graph.add_edge(src, dst, weight=1)
         return self.graph
-
+#创建端口地图
     def create_port_map(self, switch_list):
         """
-            Create interior_port table and access_port table. 
+            创建interior_port表和access_port表. 
         """
         for sw in switch_list:
             dpid = sw.dp.id
@@ -151,10 +151,10 @@ class NetworkAwareness(app_manager.RyuApp):
 
             for p in sw.ports:
                 self.switch_port_table[dpid].add(p.port_no)
-
+#创建内部链接
     def create_interior_links(self, link_list):
         """
-            Get links`srouce port to dst port  from link_list,
+            从link_list获取源端口到目的端口的链接,
             link_to_port:(src_dpid,dst_dpid)->(src_port,dst_port)
         """
         for link in link_list:
@@ -163,24 +163,24 @@ class NetworkAwareness(app_manager.RyuApp):
             self.link_to_port[
                 (src.dpid, dst.dpid)] = (src.port_no, dst.port_no)
 
-            # Find the access ports and interiorior ports
+            # 查找访问端口和内部端口
             if link.src.dpid in self.switches:
                 self.interior_ports[link.src.dpid].add(link.src.port_no)
             if link.dst.dpid in self.switches:
                 self.interior_ports[link.dst.dpid].add(link.dst.port_no)
-
+#创建访问端口
     def create_access_ports(self):
         """
-            Get ports without link into access_ports
+            Get ports without link into access_ports 获取端口，无链接到access_ports
         """
         for sw in self.switch_port_table:
             all_port_table = self.switch_port_table[sw]
             interior_port = self.interior_ports[sw]
             self.access_ports[sw] = all_port_table - interior_port
-
+# K最短路径
     def k_shortest_paths(self, graph, src, dst, weight='weight', k=1):
         """
-            Great K shortest paths of src to dst.
+            Creat K shortest paths of src to dst.创建源到目的K个最短路径
         """
         generator = nx.shortest_simple_paths(graph, source=src,
                                              target=dst, weight=weight)
@@ -194,15 +194,15 @@ class NetworkAwareness(app_manager.RyuApp):
             return shortest_paths
         except:
             self.logger.debug("No path between %s and %s" % (src, dst))
-
+#所有K个最短路径
     def all_k_shortest_paths(self, graph, weight='weight', k=1):
         """
-            Creat all K shortest paths between datapaths.
+            创建数据路径之间的所有K个最短路径。
         """
         _graph = copy.deepcopy(graph)
         paths = {}
 
-        # Find ksp in graph.
+        # 在图中查找ksp k shortest paths.
         for src in _graph.nodes():
             paths.setdefault(src, {src: [[src] for i in xrange(k)]})
             for dst in _graph.nodes():
@@ -213,16 +213,16 @@ class NetworkAwareness(app_manager.RyuApp):
                                                         weight=weight, k=k)
         return paths
 
-    # List the event list should be listened.
+    # 列出应该被监听的事件列表
     events = [event.EventSwitchEnter,
               event.EventSwitchLeave, event.EventPortAdd,
               event.EventPortDelete, event.EventPortModify,
               event.EventLinkAdd, event.EventLinkDelete]
-
+#装饰拓扑获取
     @set_ev_cls(events)
     def get_topology(self, ev):
         """
-            Get topology info and calculate shortest paths.
+            获取拓扑信息并计算最短路径.
         """
         switch_list = get_switch(self.topology_api_app, None)
         self.create_port_map(switch_list)
@@ -233,10 +233,10 @@ class NetworkAwareness(app_manager.RyuApp):
         self.get_graph(self.link_to_port.keys())
         self.shortest_paths = self.all_k_shortest_paths(
             self.graph, weight='weight', k=CONF.k_paths)
-
+#注册接入信息
     def register_access_info(self, dpid, in_port, ip, mac):
         """
-            Register access host info into access table.
+            将访问主机信息注册到访问表中
         """
         if in_port in self.access_ports[dpid]:
             if (dpid, in_port) in self.access_table:
@@ -249,11 +249,11 @@ class NetworkAwareness(app_manager.RyuApp):
                 self.access_table.setdefault((dpid, in_port), None)
                 self.access_table[(dpid, in_port)] = (ip, mac)
                 return
-
+#装饰数据包正在处理
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         """
-            Hanle the packet in packet, and register the access info.
+            处理包中的数据包，并注册访问信息。
         """
         msg = ev.msg
         datapath = msg.datapath
@@ -271,9 +271,9 @@ class NetworkAwareness(app_manager.RyuApp):
             arp_dst_ip = arp_pkt.dst_ip
             mac = arp_pkt.src_mac
 
-            # Record the access info
+            # 记录接入信息
             self.register_access_info(datapath.id, in_port, arp_src_ip, mac)
-
+#展示拓扑
     def show_topology(self):
         switch_num = len(list(self.graph.nodes()))
         if self.pre_graph != self.graph and setting.TOSHOW:
