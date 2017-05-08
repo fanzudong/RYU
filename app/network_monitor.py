@@ -32,30 +32,29 @@ import setting
 
 CONF = cfg.CONF
 
-
+#网络监控类
 class NetworkMonitor(app_manager.RyuApp):
     """
-        NetworkMonitor is a Ryu app for collecting traffic information.
+        网络监控是ryu的应用，用来收集网络流量信息
     """
-    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-
+    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]    #openflow1.3
+#初始化
     def __init__(self, *args, **kwargs):
         super(NetworkMonitor, self).__init__(*args, **kwargs)
         self.name = 'monitor'
-        self.datapaths = {}
-        self.port_stats = {}
-        self.port_speed = {}
-        self.flow_stats = {}
-        self.flow_speed = {}
-        self.stats = {}
-        self.port_features = {}
-        self.free_bandwidth = {}
+        self.datapaths = {}  #记录与控制器连接的datapath;
+        self.port_stats = {} #保存端口的统计信息；
+        self.port_speed = {} #保存端口的速率信息；
+        self.flow_stats = {} #保存流的统计信息；
+        self.flow_speed = {} #保存流的速率信息；
+        self.stats = {}      #保存所有的统计信息；
+        self.port_features = {} #保存端口特性
+        self.free_bandwidth = {} #保存空闲带宽
         self.awareness = lookup_service_brick('awareness')
-        self.graph = None
+        self.graph = None 
         self.capabilities = None
         self.best_paths = None
-        # Start to green thread to monitor traffic and calculating
-        # free bandwidth of links respectively.
+        # 开始绿线程分别监控流量和计算链路的有效带宽。
         self.monitor_thread = hub.spawn(self._monitor)
         self.save_freebandwidth_thread = hub.spawn(self._save_bw_graph)
 
@@ -63,7 +62,7 @@ class NetworkMonitor(app_manager.RyuApp):
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
         """
-            Record datapath's info
+            记录datapath的信息
         """
         datapath = ev.datapath
         if ev.state == MAIN_DISPATCHER:
@@ -74,10 +73,10 @@ class NetworkMonitor(app_manager.RyuApp):
             if datapath.id in self.datapaths:
                 self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
-
+#监控
     def _monitor(self):
         """
-            Main entry method of monitoring traffic.
+            监控流量的主要方法
         """
         while CONF.weight == 'bw':
             self.stats['flow'] = {}
@@ -85,7 +84,7 @@ class NetworkMonitor(app_manager.RyuApp):
             for dp in self.datapaths.values():
                 self.port_features.setdefault(dp.id, {})
                 self._request_stats(dp)
-                # refresh data.
+                # 刷新数据
                 self.capabilities = None
                 self.best_paths = None
             hub.sleep(setting.MONITOR_PERIOD)
@@ -93,19 +92,19 @@ class NetworkMonitor(app_manager.RyuApp):
                 self.show_stat('flow')
                 self.show_stat('port')
                 hub.sleep(1)
-
+#保存带宽图
     def _save_bw_graph(self):
         """
-            Save bandwidth data into networkx graph object.
+            将带宽数据保存到networkx图形对象中
         """
         while CONF.weight == 'bw':
             self.graph = self.create_bw_graph(self.free_bandwidth)
             self.logger.debug("save_freebandwidth")
             hub.sleep(setting.MONITOR_PERIOD)
-
+#请求统计
     def _request_stats(self, datapath):
         """
-            Sending request msg to datapath
+            发送请求msg到datapath
         """
         self.logger.debug('send stats request: %016x', datapath.id)
         ofproto = datapath.ofproto
@@ -119,11 +118,10 @@ class NetworkMonitor(app_manager.RyuApp):
 
         req = parser.OFPFlowStatsRequest(datapath)
         datapath.send_msg(req)
-
+#获取最小带宽链路
     def get_min_bw_of_links(self, graph, path, min_bw):
         """
-            Getting bandwidth of path. Actually, the mininum bandwidth
-            of links is the bandwith, because it is the neck bottle of path.
+            获得路径带宽。 实际上，链路的最小带宽是带宽，因为它是路径的颈瓶。
         """
         _len = len(path)
         if _len > 1:
@@ -137,10 +135,10 @@ class NetworkMonitor(app_manager.RyuApp):
                     continue
             return minimal_band_width
         return min_bw
-
+#获取带宽最佳路径
     def get_best_path_by_bw(self, graph, paths):
         """
-            Get best path by comparing paths.
+            通过比较路径获得最佳路径。
         """
         capabilities = {}
         best_paths = copy.deepcopy(paths)
@@ -167,10 +165,10 @@ class NetworkMonitor(app_manager.RyuApp):
         self.capabilities = capabilities
         self.best_paths = best_paths
         return capabilities, best_paths
-
+#创建带宽图
     def create_bw_graph(self, bw_dict):
         """
-            Save bandwidth data into networkx graph object.
+           将带宽数据保存到networkx图形对象中
         """
         try:
             graph = self.awareness.graph
@@ -182,7 +180,7 @@ class NetworkMonitor(app_manager.RyuApp):
                     bw_src = bw_dict[src_dpid][src_port]
                     bw_dst = bw_dict[dst_dpid][dst_port]
                     bandwidth = min(bw_src, bw_dst)
-                    # add key:value of bandwidth into graph.
+                    # add key:value of bandwidth into graph. 在图中增加 键:带宽值 
                     graph[src_dpid][dst_dpid]['bandwidth'] = bandwidth
                 else:
                     graph[src_dpid][dst_dpid]['bandwidth'] = 0
@@ -192,9 +190,9 @@ class NetworkMonitor(app_manager.RyuApp):
             if self.awareness is None:
                 self.awareness = lookup_service_brick('awareness')
             return self.awareness.graph
-
+#保存空闲带宽
     def _save_freebandwidth(self, dpid, port_no, speed):
-        # Calculate free bandwidth of port and save it.
+        # 计算端口的可用带宽并保存
         port_state = self.port_features.get(dpid).get(port_no)
         if port_state:
             capacity = port_state[2]
@@ -203,7 +201,7 @@ class NetworkMonitor(app_manager.RyuApp):
             self.free_bandwidth[dpid][port_no] = curr_bw
         else:
             self.logger.info("Fail in getting port state")
-
+#保存统计数据
     def _save_stats(self, _dict, key, value, length):
         if key not in _dict:
             _dict[key] = []
@@ -211,28 +209,27 @@ class NetworkMonitor(app_manager.RyuApp):
 
         if len(_dict[key]) > length:
             _dict[key].pop(0)
-
+#获取速率
     def _get_speed(self, now, pre, period):
         if period:
             return (now - pre) / (period)
         else:
             return 0
-
+#获取空闲带宽
     def _get_free_bw(self, capacity, speed):
         # BW:Mbit/s
         return max(capacity / 10**3 - speed * 8, 0)
-
+#获取时间
     def _get_time(self, sec, nsec):
         return sec + nsec / (10 ** 9)
-
+#获取周期
     def _get_period(self, n_sec, n_nsec, p_sec, p_nsec):
         return self._get_time(n_sec, n_nsec) - self._get_time(p_sec, p_nsec)
-
+#流统计回复处理
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
     def _flow_stats_reply_handler(self, ev):
         """
-            Save flow stats reply info into self.flow_stats.
-            Calculate flow speed and Save it.
+            将流统计信息保存到self.flow_stats中，计算流速并保存。
         """
         body = ev.msg.body
         dpid = ev.msg.datapath.id
@@ -248,7 +245,7 @@ class NetworkMonitor(app_manager.RyuApp):
                      stat.duration_sec, stat.duration_nsec)
             self._save_stats(self.flow_stats[dpid], key, value, 5)
 
-            # Get flow's speed.
+            # 获得流的速率
             pre = 0
             period = setting.MONITOR_PERIOD
             tmp = self.flow_stats[dpid][key]
@@ -261,12 +258,11 @@ class NetworkMonitor(app_manager.RyuApp):
                                     pre, period)
 
             self._save_stats(self.flow_speed[dpid], key, speed, 5)
-
+#端口状态回复处理
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
         """
-            Save port's stats info
-            Calculate port's speed and save it.
+           保存端口的统计信息，计算端口的速度并保存。
         """
         body = ev.msg.body
         dpid = ev.msg.datapath.id
@@ -282,7 +278,7 @@ class NetworkMonitor(app_manager.RyuApp):
 
                 self._save_stats(self.port_stats, key, value, 5)
 
-                # Get port speed.
+                # 获取端口速率
                 pre = 0
                 period = setting.MONITOR_PERIOD
                 tmp = self.port_stats[key]
@@ -297,11 +293,11 @@ class NetworkMonitor(app_manager.RyuApp):
 
                 self._save_stats(self.port_speed, key, speed, 5)
                 self._save_freebandwidth(dpid, port_no, speed)
-
+#端口描述统计回复处理
     @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
     def port_desc_stats_reply_handler(self, ev):
         """
-            Save port description info.
+            保存端口描述信息
         """
         msg = ev.msg
         dpid = msg.datapath.id
@@ -340,11 +336,11 @@ class NetworkMonitor(app_manager.RyuApp):
 
             port_feature = (config, state, p.curr_speed)
             self.port_features[dpid][p.port_no] = port_feature
-
+#端口状态处理
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def _port_status_handler(self, ev):
         """
-            Handle the port status changed event.
+            处理端口状态改变事件
         """
         msg = ev.msg
         reason = msg.reason
@@ -361,11 +357,10 @@ class NetworkMonitor(app_manager.RyuApp):
             print "switch%d: port %s %s" % (dpid, reason_dict[reason], port_no)
         else:
             print "switch%d: Illeagal port state %s %s" % (port_no, reason)
-
+#显示统计
     def show_stat(self, type):
         '''
-            Show statistics info according to data type.
-            type: 'port' 'flow'
+            根据数据类型显示统计信息 键入：'port'，'flow'
         '''
         if setting.TOSHOW is False:
             return
