@@ -55,21 +55,21 @@ class NetworkAwareness(app_manager.RyuApp):
         super(NetworkAwareness, self).__init__(*args, **kwargs)
         self.topology_api_app = self
         self.name = "awareness"
-        self.link_to_port = {}       # (src_dpid,dst_dpid)->(src_port,dst_port)
-        self.access_table = {}       # {(sw,port) :[host1_ip]}
-        self.switch_port_table = {}  # dpip->port_num
-        self.access_ports = {}       # dpid->port_num
-        self.interior_ports = {}     # dpid->port_num
+        self.link_to_port = {}       # (src_dpid,dst_dpid)->(src_port,dst_port) link_to_port字典存储交换机之间链路与端口的映射关系；
+        self.access_table = {}       # {(sw,port) :[host1_ip]} access_table字典存储主机的接入信息；
+        self.switch_port_table = {}  # dpip->port_num switch_port_table存储交换机端口列表；
+        self.access_ports = {}       # dpid->port_num access_ports存储外向端口（与终端连接的接口）
+        self.interior_ports = {}     # dpid->port_num interior_ports存储内部端口;
 
-        self.graph = nx.DiGraph()
-        self.pre_graph = nx.DiGraph()
+        self.graph = nx.DiGraph()  #graph存储网络拓扑图
+        self.pre_graph = nx.DiGraph() #pre_graph是上一次的网络拓扑，均用 networkx的有向图存储；
         self.pre_access_table = {}
-        self.pre_link_to_port = {}
+        self.pre_link_to_port = {} #pre_link_to_port等带有pre前缀的数据结构用于保存上一次获取的信息，用于和当前获取信息做比较。
         self.shortest_paths = None
 
         # 启动一个绿色线程来发现网络资源。
         self.discover_thread = hub.spawn(self._discover)
-
+#_discover函数是主循环函数
     def _discover(self):
         i = 0
         while True:
