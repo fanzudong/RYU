@@ -49,21 +49,24 @@ class ShortestForwarding(app_manager.RyuApp):
     """
 #openflow1.3
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-    _CONTEXTS = {
+            #_CONTEXTS中的内容将作为当前模块的服务在模块初始化时得到加载。在模块启动时，首先会将_CONTEXTS中的模块先启动，
+            #在模块的初始化函数中可以通过self.network_aware = kwargs["Network_Aware"]的形式获得该服务模块的实例，
+            #从而获取到该模块的数据，并具有完全的读写能力。这种模式很清晰地体现了模块之间的关系。
+    _CONTEXTS = {                                                          
         "network_awareness": network_awareness.NetworkAwareness,
         "network_monitor": network_monitor.NetworkMonitor,
         "network_delay_detector": network_delay_detector.NetworkDelayDetector}
-#权重模型
+#权重模型字典
     WEIGHT_MODEL = {'hop': 'weight', 'delay': "delay", "bw": "bw"}
 #初始化
     def __init__(self, *args, **kwargs):
-        super(ShortestForwarding, self).__init__(*args, **kwargs)
-        self.name = 'shortest_forwarding'
-        self.awareness = kwargs["network_awareness"]
-        self.monitor = kwargs["network_monitor"]
-        self.delay_detector = kwargs["network_delay_detector"]
-        self.datapaths = {}
-        self.weight = self.WEIGHT_MODEL[CONF.weight]
+        super(ShortestForwarding, self).__init__(*args, **kwargs)  #自动找到基类的方法，并传入self参数
+        self.name = 'shortest_forwarding'                      #最短路径转发
+        self.awareness = kwargs["network_awareness"]           #获得网络感知服务模块的实例
+        self.monitor = kwargs["network_monitor"]               #获得网络监控服务模块的实例
+        self.delay_detector = kwargs["network_delay_detector"] #获得网络延迟检测服务模块的实例
+        self.datapaths = {}                                    #数据路径字典
+        self.weight = self.WEIGHT_MODEL[CONF.weight]           #权重
 #设置权重模块
     def set_weight_mode(self, weight):
         """
@@ -105,7 +108,7 @@ class ShortestForwarding(app_manager.RyuApp):
                                 hard_timeout=hard_timeout,
                                 match=match, instructions=inst)
         dp.send_msg(mod)
-发送流mod
+#发送流mod
     def send_flow_mod(self, datapath, flow_info, src_port, dst_port):
         """
            构建流入口，并将其发送到datapath
