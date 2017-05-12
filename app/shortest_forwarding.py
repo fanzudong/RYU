@@ -53,74 +53,74 @@ class ShortestForwarding(app_manager.RyuApp):
             #在模块的初始化函数中可以通过self.network_aware = kwargs["Network_Aware"]的形式获得该服务模块的实例，
             #从而获取到该模块的数据，并具有完全的读写能力。这种模式很清晰地体现了模块之间的关系。
     _CONTEXTS = {                                                          
-        "network_awareness": network_awareness.NetworkAwareness,
+        "network_awareness": network_awareness.NetworkAwareness,    #提前加载的模块
         "network_monitor": network_monitor.NetworkMonitor,
         "network_delay_detector": network_delay_detector.NetworkDelayDetector}
-#权重模型字典
+#权重模型字典，跳数，权值，延迟，带宽
     WEIGHT_MODEL = {'hop': 'weight', 'delay': "delay", "bw": "bw"}
 #初始化
     def __init__(self, *args, **kwargs):
         super(ShortestForwarding, self).__init__(*args, **kwargs)  #自动找到基类的方法，并传入self参数
-        self.name = 'shortest_forwarding'                      #最短路径转发
+        self.name = 'shortest_forwarding'                      #名字是最短路径转发
         self.awareness = kwargs["network_awareness"]           #获得网络感知服务模块的实例
         self.monitor = kwargs["network_monitor"]               #获得网络监控服务模块的实例
         self.delay_detector = kwargs["network_delay_detector"] #获得网络延迟检测服务模块的实例
-        self.datapaths = {}                                    #数据路径字典
+        self.datapaths = {}                                    #交换机的空字典
         self.weight = self.WEIGHT_MODEL[CONF.weight]           #权重
 #设置权重模块
     def set_weight_mode(self, weight):
         """
             设置路径计算的权重模式
         """
-        self.weight = weight
-        if self.weight == self.WEIGHT_MODEL['hop']:
-            self.awareness.get_shortest_paths(weight=self.weight)
+        self.weight = weight   #权重
+        if self.weight == self.WEIGHT_MODEL['hop']:   #如果跳数是权重
+            self.awareness.get_shortest_paths(weight=self.weight) #就根据跳数获取最短路径
         return True
 #状态改变处理
     @set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
         """
-            收集datapath信息.
+            收集datapath交换机的信息.
         """
-        datapath = ev.datapath
-        if ev.state == MAIN_DISPATCHER:
-            if not datapath.id in self.datapaths:
+        datapath = ev.datapath #事件相关的交换机
+        if ev.state == MAIN_DISPATCHER: #如果是一般状态
+            if not datapath.id in self.datapaths:  #交换机不在那群交换机里，就记录日志，并将其加入
                 self.logger.debug('register datapath: %016x', datapath.id)
                 self.datapaths[datapath.id] = datapath
-        elif ev.state == DEAD_DISPATCHER:
-            if datapath.id in self.datapaths:
+        elif ev.state == DEAD_DISPATCHER:  #若事件处于解除状态
+            if datapath.id in self.datapaths: #若交换机在那群交换机里，则打印解除注册的交换机，并删除它
                 self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
-#增加流
+#增加流表
     def add_flow(self, dp, p, match, actions, idle_timeout=0, hard_timeout=0):
         """
-           给datapath发送一个流.
+           给datapath交换机发送一个流表.
         """
-        ofproto = dp.ofproto
-        parser = dp.ofproto_parser
+        ofproto = dp.ofproto  #协议
+        parser = dp.ofproto_parser #协议解析
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,  #指令是 解析器解析出的 ofp采取 执行 actions 动作
                                              actions)]
-
+#流表修改  datapath，优先权，软超时，硬超时，匹配，指令
         mod = parser.OFPFlowMod(datapath=dp, priority=p,
                                 idle_timeout=idle_timeout,
                                 hard_timeout=hard_timeout,
                                 match=match, instructions=inst)
-        dp.send_msg(mod)
-#发送流mod
+        dp.send_msg(mod)  #下发流表
+#发送流表修改 datapath，流表信息，源端口，目的端口
     def send_flow_mod(self, datapath, flow_info, src_port, dst_port):
         """
            构建流入口，并将其发送到datapath
         """
-        parser = datapath.ofproto_parser
-        actions = []
-        actions.append(parser.OFPActionOutput(dst_port))
-
-        match = parser.OFPMatch(
+        parser = datapath.ofproto_parser  #解析器
+        actions = []  #空动作数组
+        actions.append(parser.OFPActionOutput(dst_port)) #动作是在actions后插入 解析出的 目的端口
+#匹配是 入端口，以太网类型，ipv4 源地址，ipv4 目的地址
+        match = parser.OFPMatch(  
             in_port=src_port, eth_type=flow_info[0],
             ipv4_src=flow_info[1], ipv4_dst=flow_info[2])
-
+#增加流表 datapath，匹配，动作，软超时，硬超时
         self.add_flow(datapath, 1, match, actions,
                       idle_timeout=15, hard_timeout=60)
 #构建数据包输出
@@ -128,24 +128,24 @@ class ShortestForwarding(app_manager.RyuApp):
         """
             构建数据包输出对象
         """
-        actions = []
-        if dst_port:
+        actions = []  #空的动作表
+        if dst_port: #动作后添加 交换机解析出的动作输出的 目的端口
             actions.append(datapath.ofproto_parser.OFPActionOutput(dst_port))
 
-        msg_data = None
-        if buffer_id == datapath.ofproto.OFP_NO_BUFFER:
-            if data is None:
+        msg_data = None #消息的数据为空
+        if buffer_id == datapath.ofproto.OFP_NO_BUFFER:  #如果缓存id是交换机的无缓存
+            if data is None: #数据没有，就返回None
                 return None
-            msg_data = data
-
+            msg_data = data 
+#输出为 datapath，缓存id，消息数据，源端口，动作
         out = datapath.ofproto_parser.OFPPacketOut(
             datapath=datapath, buffer_id=buffer_id,
             data=msg_data, in_port=src_port, actions=actions)
         return out
-#发出数据包
+#发出数据包  datapath，缓存id，源端口，目的端口，data
     def send_packet_out(self, datapath, buffer_id, src_port, dst_port, data):
         """
-            发送数据包到分配的数据路径
+            发送数据包到分配的datapath
         """
         out = self._build_packet_out(datapath, buffer_id,
                                      src_port, dst_port, data)
