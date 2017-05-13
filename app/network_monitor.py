@@ -123,27 +123,27 @@ class NetworkMonitor(app_manager.RyuApp):
         """
             获得路径带宽。 实际上，链路的最小带宽是带宽，因为它是路径的颈瓶。
         """
-        _len = len(path)
-        if _len > 1:
+        _len = len(path) #路径长度
+        if _len > 1: #长度>1，最小带宽
             minimal_band_width = min_bw
             for i in xrange(_len-1):
-                pre, curr = path[i], path[i+1]
-                if 'bandwidth' in graph[pre][curr]:
+                pre, curr = path[i], path[i+1] #前一个，当前
+                if 'bandwidth' in graph[pre][curr]: 
                     bw = graph[pre][curr]['bandwidth']
-                    minimal_band_width = min(bw, minimal_band_width)
+                    minimal_band_width = min(bw, minimal_band_width) #两者带宽取最小
                 else:
                     continue
-            return minimal_band_width
-        return min_bw
+            return minimal_band_width #返回最小带宽
+        return min_bw #返回最小带宽
 #获取带宽最佳路径
     def get_best_path_by_bw(self, graph, paths):
         """
             通过比较路径获得最佳路径。
         """
-        capabilities = {}
-        best_paths = copy.deepcopy(paths)
+        capabilities = {} #容量
+        best_paths = copy.deepcopy(paths) #最佳路径
 
-        for src in paths:
+        for src in paths: 
             for dst in paths[src]:
                 if src == dst:
                     best_paths[src][src] = [src]
