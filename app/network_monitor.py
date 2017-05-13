@@ -15,22 +15,22 @@
 # limitations under the License.
 
 from __future__ import division
-import copy
-from operator import attrgetter
-from ryu import cfg
-from ryu.base import app_manager
-from ryu.base.app_manager import lookup_service_brick
-from ryu.controller import ofp_event
-from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
-from ryu.controller.handler import CONFIG_DISPATCHER
-from ryu.controller.handler import set_ev_cls
-from ryu.ofproto import ofproto_v1_3
-from ryu.lib import hub
-from ryu.lib.packet import packet
-import setting
+import copy #复制
+from operator import attrgetter #属性获取
+from ryu import cfg #配置
+from ryu.base import app_manager #应用管理
+from ryu.base.app_manager import lookup_service_brick #查找服务链
+from ryu.controller import ofp_event #ofp事件
+from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER #一般状态，解除状态
+from ryu.controller.handler import CONFIG_DISPATCHER #配置状态
+from ryu.controller.handler import set_ev_cls #设置事件类
+from ryu.ofproto import ofproto_v1_3 #openflow 1.3
+from ryu.lib import hub 
+from ryu.lib.packet import packet #数据包
+import setting #设置
 
 
-CONF = cfg.CONF
+CONF = cfg.CONF #配置
 
 #网络监控类
 class NetworkMonitor(app_manager.RyuApp):
@@ -42,7 +42,7 @@ class NetworkMonitor(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(NetworkMonitor, self).__init__(*args, **kwargs)
         self.name = 'monitor'
-        self.datapaths = {}  #记录与控制器连接的datapath;
+        self.datapaths = {}  #记录与控制器连接的datapath交换机;
         self.port_stats = {} #保存端口的统计信息；
         self.port_speed = {} #保存端口的速率信息；
         self.flow_stats = {} #保存流的统计信息；
@@ -50,27 +50,27 @@ class NetworkMonitor(app_manager.RyuApp):
         self.stats = {}      #保存所有的统计信息；
         self.port_features = {} #保存端口特性
         self.free_bandwidth = {} #保存空闲带宽
-        self.awareness = lookup_service_brick('awareness')
-        self.graph = None 
-        self.capabilities = None
-        self.best_paths = None
+        self.awareness = lookup_service_brick('awareness') #查找网络感知服务
+        self.graph = None  #图
+        self.capabilities = None #容量
+        self.best_paths = None #最佳路径
         # 开始绿线程分别监控流量和计算链路的有效带宽。
-        self.monitor_thread = hub.spawn(self._monitor)
-        self.save_freebandwidth_thread = hub.spawn(self._save_bw_graph)
-
+        self.monitor_thread = hub.spawn(self._monitor) #监控线程
+        self.save_freebandwidth_thread = hub.spawn(self._save_bw_graph) #保存空闲带宽线程
+#监控状态改变并进行处理
     @set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
         """
             记录datapath的信息
         """
-        datapath = ev.datapath
-        if ev.state == MAIN_DISPATCHER:
-            if not datapath.id in self.datapaths:
+        datapath = ev.datapath #交换机
+        if ev.state == MAIN_DISPATCHER: #事件处于一般状态
+            if not datapath.id in self.datapaths: #交换机不在那里面，就打印它，并加进去
                 self.logger.debug('register datapath: %016x', datapath.id)
                 self.datapaths[datapath.id] = datapath
-        elif ev.state == DEAD_DISPATCHER:
-            if datapath.id in self.datapaths:
+        elif ev.state == DEAD_DISPATCHER: #事件处于解除状态
+            if datapath.id in self.datapaths: #交换机在里面，就打印它，并删除之
                 self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
 #监控
@@ -78,45 +78,45 @@ class NetworkMonitor(app_manager.RyuApp):
         """
             监控流量的主要方法
         """
-        while CONF.weight == 'bw':
-            self.stats['flow'] = {}
-            self.stats['port'] = {}
-            for dp in self.datapaths.values():
-                self.port_features.setdefault(dp.id, {})
-                self._request_stats(dp)
+        while CONF.weight == 'bw':  #配置权重为带宽
+            self.stats['flow'] = {} #统计流
+            self.stats['port'] = {} #统计端口
+            for dp in self.datapaths.values(): #若交换机在里面
+                self.port_features.setdefault(dp.id, {}) #端口特性设置
+                self._request_stats(dp) #交换机请求统计
                 # 刷新数据
-                self.capabilities = None
-                self.best_paths = None
-            hub.sleep(setting.MONITOR_PERIOD)
-            if self.stats['flow'] or self.stats['port']:
-                self.show_stat('flow')
-                self.show_stat('port')
-                hub.sleep(1)
+                self.capabilities = None #容量
+                self.best_paths = None #最佳路径
+            hub.sleep(setting.MONITOR_PERIOD) #设置监控周期
+            if self.stats['flow'] or self.stats['port']: #如果是流统计或端口统计
+                self.show_stat('flow') #显示流统计
+                self.show_stat('port') #显示端口统计
+                hub.sleep(1) #间隔1s
 #保存带宽图
     def _save_bw_graph(self):
         """
             将带宽数据保存到networkx图形对象中
         """
-        while CONF.weight == 'bw':
-            self.graph = self.create_bw_graph(self.free_bandwidth)
-            self.logger.debug("save_freebandwidth")
-            hub.sleep(setting.MONITOR_PERIOD)
+        while CONF.weight == 'bw': #权重配置为 带宽
+            self.graph = self.create_bw_graph(self.free_bandwidth) #创建带宽图
+            self.logger.debug("save_freebandwidth") 
+            hub.sleep(setting.MONITOR_PERIOD) #设置监控间隔
 #请求统计
     def _request_stats(self, datapath):
         """
             发送请求msg到datapath
         """
-        self.logger.debug('send stats request: %016x', datapath.id)
+        self.logger.debug('send stats request: %016x', datapath.id)#发送统计请求
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        req = parser.OFPPortDescStatsRequest(datapath, 0)
+        req = parser.OFPPortDescStatsRequest(datapath, 0) #datapath端口描述统计请求
+        datapath.send_msg(req) #发送请求
+
+        req = parser.OFPPortStatsRequest(datapath, 0, ofproto.OFPP_ANY) #端口统计请求
         datapath.send_msg(req)
 
-        req = parser.OFPPortStatsRequest(datapath, 0, ofproto.OFPP_ANY)
-        datapath.send_msg(req)
-
-        req = parser.OFPFlowStatsRequest(datapath)
+        req = parser.OFPFlowStatsRequest(datapath) #流统计请求
         datapath.send_msg(req)
 #获取最小带宽链路
     def get_min_bw_of_links(self, graph, path, min_bw):
