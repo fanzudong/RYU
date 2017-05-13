@@ -151,7 +151,7 @@ class ShortestForwarding(app_manager.RyuApp):
                                      src_port, dst_port, data)
         if out:
             datapath.send_msg(out)
-#获取端口
+#获取端口 目的ip 接入表
     def get_port(self, dst_ip, access_table):
         """
             获取接入端口 if dst host.
@@ -162,12 +162,12 @@ class ShortestForwarding(app_manager.RyuApp):
                 for key in access_table.keys():
                     if dst_ip == access_table[key][0]:
                         dst_port = key[1]
-                        return dst_port
+                        return dst_port   #返回目的端口
         return None
-#从链路获取端口对
+#从链路获取端口对，存在就返回它们，否则打印它们不在
     def get_port_pair_from_link(self, link_to_port, src_dpid, dst_dpid):
         """
-            获取端口对的链接，使控制器可以安装流入
+            获取端口对的链接，使控制器可以安装流表
         """
         if (src_dpid, dst_dpid) in link_to_port:
             return link_to_port[(src_dpid, dst_dpid)]
@@ -184,9 +184,9 @@ class ShortestForwarding(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        for dpid in self.awareness.access_ports:
-            for port in self.awareness.access_ports[dpid]:
-                if (dpid, port) not in self.awareness.access_table.keys():
+        for dpid in self.awareness.access_ports:#对于dpid在感知接入端口中
+            for port in self.awareness.access_ports[dpid]: #对于在交换机端口的端口
+                if (dpid, port) not in self.awareness.access_table.keys(): #若dpid和端口不在表里，就发给控制器
                     datapath = self.datapaths[dpid]
                     out = self._build_packet_out(
                         datapath, ofproto.OFP_NO_BUFFER,
@@ -196,17 +196,17 @@ class ShortestForwarding(app_manager.RyuApp):
 #地址解析协议转发
     def arp_forwarding(self, msg, src_ip, dst_ip):
         """
-        将ARP数据包发送到目标主机，如果存在dst主机记录，否则将其传送到未知访问端口。
+        如果存在dst主机记录，将ARP数据包发送到目标主机，否则将其传送到未知访问端口。
         """
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
         result = self.awareness.get_host_location(dst_ip)
-        if result:  # host record in access table.
+        if result:  # 主机记录在接入表里.
             datapath_dst, out_port = result[0], result[1]
             datapath = self.datapaths[datapath_dst]
-            out = self._build_packet_out(datapath, ofproto.OFP_NO_BUFFER,
+            out = self._build_packet_out(datapath, ofproto.OFP_NO_BUFFER, #构建输出包
                                          ofproto.OFPP_CONTROLLER,
                                          out_port, msg.data)
             datapath.send_msg(out)
@@ -269,24 +269,24 @@ class ShortestForwarding(app_manager.RyuApp):
             dst_sw = dst_location[0]
 
         return src_sw, dst_sw
-#安装流
+#安装流表 
     def install_flow(self, datapaths, link_to_port, access_table, path,
                      flow_info, buffer_id, data=None):
         ''' 
-            安装往返的流条目：往返
+            安装往返的流表：往返
             @parameter: path=[dpid1, dpid2...]
                         flow_info=(eth_type, src_ip, dst_ip, in_port)
         '''
-        if path is None or len(path) == 0:
+        if path is None or len(path) == 0: #若路径不存在或者路径长度为0，打印错误
             self.logger.info("Path error!")
             return
-        in_port = flow_info[3]
-        first_dp = datapaths[path[0]]
-        out_port = first_dp.ofproto.OFPP_LOCAL
-        back_info = (flow_info[0], flow_info[2], flow_info[1])
+        in_port = flow_info[3] #入端口 流表信息
+        first_dp = datapaths[path[0]] #第一个交换机
+        out_port = first_dp.ofproto.OFPP_LOCAL #输出端口
+        back_info = (flow_info[0], flow_info[2], flow_info[1]) #返回信息
 
         # inter_link
-        if len(path) > 2:
+        if len(path) > 2: #若链路长度>2
             for i in xrange(1, len(path)-1):
                 port = self.get_port_pair_from_link(link_to_port,
                                                     path[i-1], path[i])
@@ -339,7 +339,7 @@ class ShortestForwarding(app_manager.RyuApp):
 #最短路径转发
     def shortest_forwarding(self, msg, eth_type, ip_src, ip_dst):
         """
-            计算最短转发路径并将其安装到数据路径中
+            计算最短转发路径并将其安装到交换机中
         """
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -354,7 +354,7 @@ class ShortestForwarding(app_manager.RyuApp):
                 path = self.get_path(src_sw, dst_sw, weight=self.weight)
                 self.logger.info("[PATH]%s<-->%s: %s" % (ip_src, ip_dst, path))
                 flow_info = (eth_type, ip_src, ip_dst, in_port)
-                # 将流条目安装到路径旁的数据路径
+                # 将流条目安装到路径旁的交换机
                 self.install_flow(self.datapaths,
                                   self.awareness.link_to_port,
                                   self.awareness.access_table, path,
@@ -366,12 +366,12 @@ class ShortestForwarding(app_manager.RyuApp):
         '''
            在packet_in处理程序中，我们需要通过ARP学习access_table。 因此，未知主机的第一个包必须是ARP。
         '''
-        msg = ev.msg
-        datapath = msg.datapath
-        in_port = msg.match['in_port']
-        pkt = packet.Packet(msg.data)
-        arp_pkt = pkt.get_protocol(arp.arp)
-        ip_pkt = pkt.get_protocol(ipv4.ipv4)
+        msg = ev.msg #事件消息
+        datapath = msg.datapath  #交换机
+        in_port = msg.match['in_port'] #入端口
+        pkt = packet.Packet(msg.data) #数据包
+        arp_pkt = pkt.get_protocol(arp.arp) #arp数据包
+        ip_pkt = pkt.get_protocol(ipv4.ipv4)  #ip数据包
 
         if isinstance(arp_pkt, arp.arp):
             self.logger.debug("ARP processing")
