@@ -47,7 +47,6 @@ class ShortestForwarding(app_manager.RyuApp):
         最短的转发是用于在最短路径中转发数据包的Ryu应用程序，此应用程序未定义路径计算方法。
         要获得最短路径，该模块取决于网络感知，网络监控和网络延迟检测模块。
     """
-#openflow1.3
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
             #_CONTEXTS中的内容将作为当前模块的服务在模块初始化时得到加载。在模块启动时，首先会将_CONTEXTS中的模块先启动，
             #在模块的初始化函数中可以通过self.network_aware = kwargs["Network_Aware"]的形式获得该服务模块的实例，
@@ -56,9 +55,9 @@ class ShortestForwarding(app_manager.RyuApp):
         "network_awareness": network_awareness.NetworkAwareness,    #提前加载的模块
         "network_monitor": network_monitor.NetworkMonitor,
         "network_delay_detector": network_delay_detector.NetworkDelayDetector}
-#权重模型字典，跳数，权值，延迟，带宽
+
     WEIGHT_MODEL = {'hop': 'weight', 'delay': "delay", "bw": "bw"}
-#初始化
+
     def __init__(self, *args, **kwargs):
         super(ShortestForwarding, self).__init__(*args, **kwargs)  #自动找到基类的方法，并传入self参数
         self.name = 'shortest_forwarding'                      #名字是最短路径转发
@@ -67,7 +66,7 @@ class ShortestForwarding(app_manager.RyuApp):
         self.delay_detector = kwargs["network_delay_detector"] #获得网络延迟检测服务模块的实例
         self.datapaths = {}                                    #交换机的空字典
         self.weight = self.WEIGHT_MODEL[CONF.weight]           #权重
-#设置权重模块
+        #设置权重模块
     def set_weight_mode(self, weight):
         """
             设置路径计算的权重模式
@@ -102,13 +101,13 @@ class ShortestForwarding(app_manager.RyuApp):
 
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,  #指令是 解析器解析出的 ofp采取 执行 actions 动作
                                              actions)]
-#流表修改  datapath，优先权，软超时，硬超时，匹配，指令
+        #流表修改  datapath，优先权，软超时，硬超时，匹配，指令
         mod = parser.OFPFlowMod(datapath=dp, priority=p,
                                 idle_timeout=idle_timeout,
                                 hard_timeout=hard_timeout,
                                 match=match, instructions=inst)
         dp.send_msg(mod)  #下发流表
-#发送流表修改 datapath，流表信息，源端口，目的端口
+        #发送流表修改 datapath，流表信息，源端口，目的端口
     def send_flow_mod(self, datapath, flow_info, src_port, dst_port):
         """
            构建流入口，并将其发送到datapath
@@ -116,14 +115,14 @@ class ShortestForwarding(app_manager.RyuApp):
         parser = datapath.ofproto_parser  #解析器
         actions = []  #空动作数组
         actions.append(parser.OFPActionOutput(dst_port)) #动作是在actions后插入 解析出的 目的端口
-#匹配是 入端口，以太网类型，ipv4 源地址，ipv4 目的地址
+        #匹配是 入端口，以太网类型，ipv4 源地址，ipv4 目的地址
         match = parser.OFPMatch(  
             in_port=src_port, eth_type=flow_info[0],
             ipv4_src=flow_info[1], ipv4_dst=flow_info[2])
-#增加流表 datapath，匹配，动作，软超时，硬超时
+        #增加流表 datapath，匹配，动作，软超时，硬超时
         self.add_flow(datapath, 1, match, actions,
                       idle_timeout=15, hard_timeout=60)
-#构建数据包输出
+        #构建数据包输出
     def _build_packet_out(self, datapath, buffer_id, src_port, dst_port, data):
         """
             构建数据包输出对象
