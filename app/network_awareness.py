@@ -77,7 +77,7 @@ class NetworkAwareness(app_manager.RyuApp):
             if i == 5:
                 self.get_topology(None)
                 i = 0
-            hub.sleep(setting.DISCOVERY_PERIOD)
+            hub.sleep(setting.DISCOVERY_PERIOD) #设置循环间隔
             i = i + 1
 #装饰交换机特征处理
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
@@ -275,7 +275,7 @@ class NetworkAwareness(app_manager.RyuApp):
             self.register_access_info(datapath.id, in_port, arp_src_ip, mac)
 #展示拓扑
     def show_topology(self):
-        switch_num = len(list(self.graph.nodes()))
+        switch_num = len(list(self.graph.nodes()))  #交换机数量
         if self.pre_graph != self.graph and setting.TOSHOW:
             print "---------------------Topo Link---------------------"
             print '%10s' % ("switch"),
